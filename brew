@@ -1,1 +1,125 @@
 
+-- [[ WITCH'S BREW SUPREME - PERSISTENT & SEPARATED UI ]] --
+
+-- ลบ UI เก่าหากมีอยู่
+if game.CoreGui:FindFirstChild("SupremeMenu") then
+    game.CoreGui.SupremeMenu:Destroy()
+end
+
+-- [[ ตัวแปรหลัก ]]
+local T1 = "True Wand of Triplets"
+local T2 = "Witch's Brew"
+local T3 = "Equalized Nectar"
+
+local CD1, CD3 = 13, 5
+local next1, next3 = 0, 0
+
+local p = game.Players.LocalPlayer
+local vim = game:GetService("VirtualInputManager")
+
+-- สเตตัสการเปิด/ปิด (จะยังคงอยู่แม้ตัวละครตาย)
+_G.Config = _G.Config or {
+    AutoWand = false,
+    AutoBrew = false,
+    AutoNectar = false,
+    NoCD = false
+}
+
+-- [[ ระบบ No Cooldown (Hookfunction) ]]
+local oldWait
+local function ToggleBypass(state)
+    if state then
+        if not oldWait then
+            oldWait = hookfunction(wait, function(seconds) 
+                return oldWait(0) 
+            end)
+        end
+    else
+        if oldWait then
+            hookfunction(wait, oldWait)
+            oldWait = nil
+        end
+    end
+end
+
+-- [[ สร้าง GUI ]]
+local sg = Instance.new("ScreenGui", game.CoreGui)
+sg.Name = "SupremeMenu"
+sg.ResetOnSpawn = false -- ทำให้ UI ไม่หายตอนตาย
+
+local frame = Instance.new("Frame", sg)
+frame.Size = UDim2.new(0, 200, 0, 220)
+frame.Position = UDim2.new(0.05, 0, 0.3, 0)
+frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+frame.Active = true
+frame.Draggable = true
+
+local function createBtn(text, pos, configKey, color)
+    local btn = Instance.new("TextButton", frame)
+    btn.Size = UDim2.new(0.9, 0, 0, 35)
+    btn.Position = pos
+    btn.BackgroundColor3 = _G.Config[configKey] and color or Color3.fromRGB(60, 60, 60)
+    btn.Text = text .. ": " .. (_G.Config[configKey] and "ON" or "OFF")
+    btn.TextColor3 = Color3.new(1, 1, 1)
+    
+    btn.MouseButton1Click:Connect(function()
+        _G.Config[configKey] = not _G.Config[configKey]
+        btn.Text = text .. ": " .. (_G.Config[configKey] and "ON" or "OFF")
+        btn.BackgroundColor3 = _G.Config[configKey] and color or Color3.fromRGB(60, 60, 60)
+        
+        if configKey == "NoCD" then
+            ToggleBypass(_G.Config.NoCD)
+        end
+    end)
+    return btn
+end
+
+-- สร้างปุ่มแยกกัน
+createBtn("Auto Nectar", UDim2.new(0.05, 0, 0.1, 0), "AutoNectar", Color3.fromRGB(0, 150, 200))
+createBtn("Auto Wand (R)", UDim2.new(0.05, 0, 0.32, 0), "AutoWand", Color3.fromRGB(150, 0, 200))
+createBtn("Auto Brew", UDim2.new(0.05, 0, 0.54, 0), "AutoBrew", Color3.fromRGB(0, 150, 0))
+createBtn("No Cooldown", UDim2.new(0.05, 0, 0.76, 0), "NoCD", Color3.fromRGB(200, 150, 0))
+
+-- [[ Main Loop ]]
+task.spawn(function()
+    while true do
+        task.wait(0.01)
+        
+        local c = p.Character
+        local h = c and c:FindFirstChild("Humanoid")
+        if not h or h.Health <= 0 then continue end
+        
+        local now = tick()
+
+        -- แยกทำงานตามปุ่มที่เปิด
+        if _G.Config.AutoNectar and now >= next3 then
+            local tool = p.Backpack:FindFirstChild(T3) or c:FindFirstChild(T3)
+            if tool then 
+                h:EquipTool(tool)
+                task.wait(0.05)
+                tool:Activate()
+                next3 = now + CD3 
+            end
+        end
+
+        if _G.Config.AutoWand and now >= next1 then
+            local tool = p.Backpack:FindFirstChild(T1) or c:FindFirstChild(T1)
+            if tool then
+                h:EquipTool(tool)
+                task.wait(0.05)
+                vim:SendKeyEvent(true, Enum.KeyCode.R, false, game)
+                task.wait(0.05)
+                vim:SendKeyEvent(false, Enum.KeyCode.R, false, game)
+                next1 = now + CD1
+            end
+        end
+
+        if _G.Config.AutoBrew then
+            local tool = p.Backpack:FindFirstChild(T2) or c:FindFirstChild(T2)
+            if tool then
+                if not c:FindFirstChild(T2) then h:EquipTool(tool) end
+                task.spawn(function() tool:Activate() end)
+            end
+        end
+    end
+end)
